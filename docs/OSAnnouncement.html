@@ -93,9 +93,8 @@
     <div id="welcome-screen">
         <h1 id="welcome-title">Welcome</h1>
         <p id="welcome-text">Loading announcement...</p>
-        <div class="loader"></div>
+        <div class="loader" id="welcome-loader"></div>
     </div>
-    <!-- Removed static src to allow JS dynamic loading, preventing duplicate network requests -->
     <iframe id="remote-iframe"></iframe>
 </div>
 
@@ -103,10 +102,10 @@
     // Remote announcement URL (replace this with your target URL)
     const REMOTE_BASE_URL = "YOUR_REMOTE_URL_HERE";
 
-    // 1. Define translation dictionary[cite: 1]
+    // 1. Define translation dictionary
     const translations = {
-        'en': { title: 'Welcome', text: 'Loading announcement...' },
-        'zh': { title: '欢迎访问', text: '正在加载公告...' }
+        'en': { title: 'Welcome', text: 'Loading announcement...', failText: 'Welcome to OS ID' },
+        'zh': { title: '欢迎访问', text: '正在加载公告...', failText: '欢迎使用 OS ID' }
     };
 
     // 2. Language determination fallback logic
@@ -125,7 +124,7 @@
         }
     }
 
-    // Step B (Fallback): If URL param is missing or invalid, use system/browser language[cite: 1]
+    // Step B (Fallback): If URL param is missing or invalid, use system/browser language
     if (!finalLang) {
         const sysLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
         if (sysLang.startsWith('zh')) {
@@ -135,28 +134,49 @@
         }
     }
 
-    // 3. Apply translations to the local welcome screen[cite: 1]
+    // 3. Apply translations to the local welcome screen
     document.getElementById('welcome-title').innerText = translations[finalLang].title;
     document.getElementById('welcome-text').innerText = translations[finalLang].text;
 
-    // 4. Append the determined language parameter to the remote URL and inject into the iframe
-    const iframe = document.getElementById('remote-iframe');
-    // Check if the remote URL already contains parameters to decide using '?' or '&'
+    // 4. Construct the final remote URL with lang parameter
     const separator = REMOTE_BASE_URL.includes('?') ? '&' : '?';
     const finalRemoteUrl = `${REMOTE_BASE_URL}${separator}lang=${finalLang}`;
-    iframe.src = finalRemoteUrl;
 
-    // 5. Keep the welcome screen for at least 2 seconds, then transition to the remote iframe
     const welcomeScreen = document.getElementById('welcome-screen');
+    const iframe = document.getElementById('remote-iframe');
+    const loader = document.getElementById('welcome-loader');
 
-    setTimeout(() => {
-        iframe.style.opacity = '1';
-        welcomeScreen.style.opacity = '0';
-        setTimeout(() => { 
-            // Hide the welcome screen container after the fade-out transition completes
-            welcomeScreen.style.display = 'none'; 
-        }, 1000);
-    }, 2000);
+    // Record the time when the loading starts to ensure at least 2 seconds delay
+    const startTime = Date.now();
+
+    // 5. Probe the remote URL to check availability before rendering the iframe
+    fetch(finalRemoteUrl, { mode: 'no-cors' })
+        .then(() => {
+            // Target URL is reachable. Load it into the iframe.
+            iframe.src = finalRemoteUrl;
+
+            // Wait until the 2-second threshold is met, then trigger the fade transition
+            const elapsedTime = Date.now() - startTime;
+            const remainingTime = Math.max(2000 - elapsedTime, 0);
+
+            setTimeout(() => {
+                iframe.style.opacity = '1';
+                welcomeScreen.style.opacity = '0';
+                setTimeout(() => { 
+                    welcomeScreen.style.display = 'none'; 
+                }, 1000);
+            }, remainingTime);
+        })
+        .catch((error) => {
+            // Target URL is unreachable (e.g., DNS error, server offline, 404 block etc.)
+            console.warn("Remote URL is unreachable. Keeping the static welcome screen.", error);
+            
+            // Apply the fallback welcome message and remove the loading animation
+            document.getElementById('welcome-text').innerText = translations[finalLang].failText;
+            if (loader) {
+                loader.style.display = 'none';
+            }
+        });
 </script>
 
 </body>
