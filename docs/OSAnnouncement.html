@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        /* 1. */
+        /* 1. Base reset and dark theme styling matching the login page */
         body, html { 
             margin: 0; 
             padding: 0; 
@@ -22,7 +22,7 @@
             height: 100%; 
         }
         
-        /* 2 */
+        /* 2. Welcome screen: subtle background gradient and glow effect */
         #welcome-screen {
             position: absolute; 
             top: 0; 
@@ -58,6 +58,7 @@
             font-weight: 300;
         }
 
+        /* Breathing orange loader matching the theme of your login button */
         .loader {
             width: 8px;
             height: 8px;
@@ -72,7 +73,7 @@
             50% { transform: scale(1.3); opacity: 1; }
         }
 
-        /* 4 */
+        /* 3. Remote iframe styling */
         #remote-iframe {
             position: absolute; 
             top: 0; 
@@ -94,32 +95,65 @@
         <p id="welcome-text">Loading announcement...</p>
         <div class="loader"></div>
     </div>
-    <iframe id="remote-iframe" src="YOUR_REMOTE_URL_HERE"></iframe>
+    <!-- Removed static src to allow JS dynamic loading, preventing duplicate network requests -->
+    <iframe id="remote-iframe"></iframe>
 </div>
 
 <script>
-    // 1
+    // Remote announcement URL (replace this with your target URL)
+    const REMOTE_BASE_URL = "YOUR_REMOTE_URL_HERE";
+
+    // 1. Define translation dictionary[cite: 1]
     const translations = {
         'en': { title: 'Welcome', text: 'Loading announcement...' },
         'zh': { title: '欢迎访问', text: '正在加载公告...' }
     };
 
-    // 2
-    const userLang = navigator.language || navigator.userLanguage;
-    const lang = userLang.startsWith('zh') ? 'zh' : 'en';
+    // 2. Language determination fallback logic
+    let finalLang = '';
 
-    // 3
-    document.getElementById('welcome-title').innerText = translations[lang].title;
-    document.getElementById('welcome-text').innerText = translations[lang].text;
+    // Step A: Try to get 'lang' parameter from the current URL
+    const urlParams = new URLSearchParams(window.location.search);
+    let paramLang = urlParams.get('lang');
 
-    // 4
-    const welcomeScreen = document.getElementById('welcome-screen');
+    if (paramLang) {
+        paramLang = paramLang.toLowerCase();
+        if (paramLang.startsWith('zh')) {
+            finalLang = 'zh';
+        } else if (paramLang.startsWith('en')) {
+            finalLang = 'en';
+        }
+    }
+
+    // Step B (Fallback): If URL param is missing or invalid, use system/browser language[cite: 1]
+    if (!finalLang) {
+        const sysLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+        if (sysLang.startsWith('zh')) {
+            finalLang = 'zh';
+        } else {
+            finalLang = 'en'; // Default to English if no match is found
+        }
+    }
+
+    // 3. Apply translations to the local welcome screen[cite: 1]
+    document.getElementById('welcome-title').innerText = translations[finalLang].title;
+    document.getElementById('welcome-text').innerText = translations[finalLang].text;
+
+    // 4. Append the determined language parameter to the remote URL and inject into the iframe
     const iframe = document.getElementById('remote-iframe');
+    // Check if the remote URL already contains parameters to decide using '?' or '&'
+    const separator = REMOTE_BASE_URL.includes('?') ? '&' : '?';
+    const finalRemoteUrl = `${REMOTE_BASE_URL}${separator}lang=${finalLang}`;
+    iframe.src = finalRemoteUrl;
+
+    // 5. Keep the welcome screen for at least 2 seconds, then transition to the remote iframe
+    const welcomeScreen = document.getElementById('welcome-screen');
 
     setTimeout(() => {
         iframe.style.opacity = '1';
         welcomeScreen.style.opacity = '0';
         setTimeout(() => { 
+            // Hide the welcome screen container after the fade-out transition completes
             welcomeScreen.style.display = 'none'; 
         }, 1000);
     }, 2000);
